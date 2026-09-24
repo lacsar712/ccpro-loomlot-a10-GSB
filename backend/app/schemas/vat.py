@@ -2,6 +2,8 @@ from typing import Optional, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.schemas.queue_ticket import QueueTicketOut
+
 VatStatus = Literal["ready", "dyeing", "drain"]
 
 
@@ -34,3 +36,4 @@ class VatOut(BaseModel):
     fiber_type: str = Field(serialization_alias="fiberType")
     capacity_l: float = Field(serialization_alias="capacityL")
     status: VatStatus
+    current_ticket: Optional[QueueTicketOut] = Field(None, serialization_alias="currentTicket")

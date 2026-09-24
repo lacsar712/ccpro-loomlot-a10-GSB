@@ -5,6 +5,7 @@ from app.database import SessionLocal
 from app.models.dye_house import DyeHouse
 from app.models.dye_lot import DyeLot
 from app.models.fastness_check import FastnessCheck
+from app.models.queue_ticket import QueueTicket
 from app.models.user import User
 from app.models.vat import Vat
 
@@ -93,6 +94,17 @@ def seed() -> None:
             )
             db.add_all([lot1, lot2])
             db.flush()
+
+            # 一号染缸：已取号、尚未叫号，等待主管叫号（取号人染程操作员）。
+            seed_ticket = QueueTicket(
+                vat_id=v1.id,
+                taken_at=now - timedelta(minutes=12),
+                called_at=None,
+                voided_at=None,
+                completed_at=None,
+                taken_by="染程操作员",
+            )
+            db.add(seed_ticket)
 
             # lot2 was on ready vat historically — keep v3 ready for demo create path
             # Re-set: creating lot2 would have set dyeing; for seed we leave one dyeing + one ready

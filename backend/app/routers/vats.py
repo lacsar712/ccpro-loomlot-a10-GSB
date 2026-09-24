@@ -7,8 +7,10 @@ from sqlalchemy.orm import Session
 from app.auth import get_current_user
 from app.database import get_db
 from app.models.dye_house import DyeHouse
+from app.models.queue_ticket import QueueTicket
 from app.models.user import User
 from app.models.vat import Vat
+from app import queue_service
 from app.schemas.vat import VatCreate, VatUpdate, VatOut
 
 router = APIRouter(prefix="/api/vats", tags=["vats"])
@@ -20,10 +22,23 @@ def list_vats(
     db: Session = Depends(get_db),
     _: User = Depends(get_current_user),
 ):
+    expired = queue_service.expire_all_due(db)
+    if expired:
+        db.commit()
     q = db.query(Vat)
     if dye_house_id is not None:
         q = q.filter(Vat.dye_house_id == dye_house_id)
-    return q.order_by(Vat.id).all()
+    vats = q.order_by(Vat.id).all()
+    active = (
+        db.query(QueueTicket)
+        .filter(QueueTicket.voided_at.is_(None), QueueTicket.completed_at.is_(None))
+        .all()
+    )
+    current = {t.vat_id: t for t in active}
+    for vat in vats:
+        ticket = current.get(vat.id)
+        vat.current_ticket = queue_service.serialize_ticket(ticket) if ticket else None
+    return vats
 
 
 @router.post("", response_model=VatOut, status_code=status.HTTP_201_CREATED)

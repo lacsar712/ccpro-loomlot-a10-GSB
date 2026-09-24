@@ -29,6 +29,7 @@ class DyeLotOut(BaseModel):
 
     id: int
     vat_id: int = Field(serialization_alias="vatId")
+    queue_ticket_id: Optional[int] = Field(None, serialization_alias="queueTicketId")
     recipe_name: str = Field(serialization_alias="recipeName")
     fabric_kg: float = Field(serialization_alias="fabricKg")
     started_at: datetime = Field(serialization_alias="startedAt")

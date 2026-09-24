@@ -1,9 +1,10 @@
 <script>
   import { onMount } from 'svelte';
-  import { api, VAT_STATUS, toLocalInput, fromLocalInput } from '../lib/api.js';
+  import { api, VAT_STATUS, QUEUE_STATE, QUEUE_TIMEOUT_MINUTES, toLocalInput, fromLocalInput } from '../lib/api.js';
 
   let vats = [];
   let rows = [];
+  let tickets = [];
   let error = '';
   let form = {
     vatId: '',
@@ -17,7 +18,11 @@
   async function load() {
     error = '';
     try {
-      [vats, rows] = await Promise.all([api('/vats'), api('/dye-lots')]);
+      [vats, rows, tickets] = await Promise.all([
+        api('/vats'),
+        api('/dye-lots'),
+        api('/queue-tickets'),
+      ]);
       const usable = vats.filter((v) => v.status === 'ready' || v.status === 'dyeing');
       if (!form.vatId && usable.length) form.vatId = String(usable[0].id);
       else if (!form.vatId && vats.length) form.vatId = String(vats[0].id);
@@ -27,6 +32,11 @@
   }
 
   onMount(load);
+
+  // 所选染缸当前在途号（未作废未完成，可能已超时）。
+  $: selectedTicket = tickets.find((t) => String(t.vatId) === String(form.vatId) &&
+    (t.state === 'waiting' || t.state === 'called'));
+  $: canOpen = selectedTicket?.state === 'called';
 
   function vatLabel(id) {
     const v = vats.find((x) => x.id === id);
@@ -86,7 +96,10 @@
 </script>
 
 <h1 class="page-title">染程</h1>
-<p class="page-sub">仅 ready / dyeing 染缸可开缸；提交后染缸自动变为染色中。</p>
+<p class="page-sub">
+  开缸须先在「叫号排队」取号并经主管叫号；未叫号或已作废会被 409 拦截。叫号后 {QUEUE_TIMEOUT_MINUTES}
+  分钟内必须开出染程，超时号自动作废。
+</p>
 
 <div class="panel" style="margin-bottom:1rem;">
   <div class="form-grid">
@@ -105,8 +118,23 @@
     <label>开始时间 <input type="datetime-local" bind:value={form.startedAt} /></label>
     <label>操作员 <input bind:value={form.operatorName} /></label>
   </div>
+
+  {#if selectedTicket}
+    <p class="ticket-hint {selectedTicket.state}">
+      当前号 #{selectedTicket.id}：{QUEUE_STATE[selectedTicket.state] || selectedTicket.state}
+      {#if selectedTicket.state === 'waiting'}— 请等待主管叫号后再开染程{/if}
+      {#if selectedTicket.state === 'called' && selectedTicket.deadlineAt}
+        — 须在 {new Date(selectedTicket.deadlineAt).toLocaleTimeString()} 前开出染程
+      {/if}
+    </p>
+  {:else}
+    <p class="ticket-hint voided">该染缸无有效叫号，请先到「叫号排队」取号并等待叫号。</p>
+  {/if}
+
   <div class="toolbar">
-    <button class="btn" type="button" on:click={save}>{editing ? '保存修改' : '新建染程'}</button>
+    <button class="btn" type="button" disabled={!editing && !canOpen} on:click={save}
+      >{editing ? '保存修改' : '新建染程'}</button
+    >
     {#if editing}
       <button class="btn ghost" type="button" on:click={() => (editing = null)}>取消</button>
     {/if}
@@ -145,3 +173,19 @@
     </tbody>
   </table>
 </div>
+
+<style>
+  .ticket-hint {
+    margin: 0 0 0.75rem;
+    font-size: 0.85rem;
+  }
+  .ticket-hint.waiting {
+    color: #e0a84a;
+  }
+  .ticket-hint.called {
+    color: #8ad8ff;
+  }
+  .ticket-hint.voided {
+    color: #e07a7a;
+  }
+</style>

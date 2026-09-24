@@ -1,6 +1,6 @@
 <script>
   import { onMount } from 'svelte';
-  import { api, VAT_STATUS } from '../lib/api.js';
+  import { api, VAT_STATUS, QUEUE_STATE } from '../lib/api.js';
 
   let houses = [];
   let rows = [];
@@ -92,6 +92,31 @@
   }
 </script>
 
+<style>
+  .muted {
+    color: var(--indigo-mist);
+    font-size: 0.78rem;
+  }
+  .badge.q-waiting {
+    color: #e0a84a;
+    border-color: rgba(224, 168, 74, 0.5);
+    background: rgba(224, 168, 74, 0.12);
+  }
+  .badge.q-called {
+    color: #8ad8ff;
+    border-color: rgba(90, 170, 230, 0.55);
+    background: rgba(90, 170, 230, 0.14);
+  }
+  .badge.q-voided {
+    color: #e07a7a;
+    border-color: rgba(224, 122, 122, 0.5);
+  }
+  .badge.q-completed {
+    color: var(--ok);
+    border-color: rgba(76, 175, 130, 0.45);
+  }
+</style>
+
 <h1 class="page-title">染缸</h1>
 <p class="page-sub">状态：就绪 / 染色中 / 排液。容量单位为升。</p>
 
@@ -142,6 +167,7 @@
         <th>纤维</th>
         <th>容量 L</th>
         <th>状态</th>
+        <th>当前号</th>
         <th></th>
       </tr>
     </thead>
@@ -154,6 +180,15 @@
           <td>{row.fiberType}</td>
           <td>{row.capacityL}</td>
           <td><span class="badge {row.status}">{VAT_STATUS[row.status] || row.status}</span></td>
+          <td>
+            {#if row.currentTicket}
+              <span class="badge q-{row.currentTicket.state}"
+                >#{row.currentTicket.id} {QUEUE_STATE[row.currentTicket.state] || row.currentTicket.state}</span
+              >
+            {:else}
+              <span class="muted">无在途号</span>
+            {/if}
+          </td>
           <td class="row-actions">
             {#if row.status !== 'drain'}
               <button class="btn ghost small" type="button" on:click={() => drain(row.id)}>完成排液</button>

@@ -55,3 +55,10 @@ def get_current_user(
     if not user:
         raise credentials_exception
     return user
+
+
+def require_supervisor(current_user: User = Depends(get_current_user)) -> User:
+    """叫号等仅主管（admin）可执行的动作。"""
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="仅主管可执行叫号操作")
+    return current_user

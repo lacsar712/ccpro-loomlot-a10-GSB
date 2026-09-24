@@ -9,6 +9,7 @@ from app.database import get_db
 from app.models.dye_lot import DyeLot
 from app.models.user import User
 from app.models.vat import Vat
+from app import queue_service
 from app.schemas.dye_lot import DyeLotCreate, DyeLotUpdate, DyeLotOut
 
 router = APIRouter(prefix="/api/dye-lots", tags=["dye-lots"])
@@ -42,16 +43,25 @@ def create_dye_lot(
             status_code=409,
             detail=f"染缸状态为「{vat.status}」，仅 ready 或 dyeing 时可新建染程",
         )
+    # 叫号闸口：未叫号 / 已作废 / 叫号超时一律 409 中文拦截。
+    ticket = queue_service.openable_ticket_or_409(db, payload.vat_id)
     item = DyeLot(
         vat_id=payload.vat_id,
+        queue_ticket_id=ticket.id,
         recipe_name=payload.recipe_name,
         fabric_kg=payload.fabric_kg,
         started_at=payload.started_at,
         operator_name=payload.operator_name,
     )
     vat.status = "dyeing"
+    # 开立成功该号即完成，唯一约束确保不得再开第二笔挂同一号。
+    ticket.completed_at = queue_service.now()
     db.add(item)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="该排队号已完成，不得再开立挂同一号的染程")
     db.refresh(item)
     return item
 
@@ -79,6 +89,7 @@ def update_dye_lot(
     if not item:
         raise HTTPException(status_code=404, detail="染程不存在")
     data = payload.model_dump(exclude_unset=True)
+    new_ticket = None
     if "vat_id" in data and data["vat_id"] != item.vat_id:
         vat = db.query(Vat).filter(Vat.id == data["vat_id"]).first()
         if not vat:
@@ -88,10 +99,19 @@ def update_dye_lot(
                 status_code=409,
                 detail=f"目标染缸状态为「{vat.status}」，无法改挂染程",
             )
+        # 改挂到另一染缸同样必须持有该缸有效叫号，防止借编辑绕过叫号闸口。
+        new_ticket = queue_service.openable_ticket_or_409(db, data["vat_id"])
         vat.status = "dyeing"
     for k, v in data.items():
         setattr(item, k, v)
-    db.commit()
+    if new_ticket is not None:
+        item.queue_ticket_id = new_ticket.id
+        new_ticket.completed_at = queue_service.now()
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="该排队号已完成，不得再开立挂同一号的染程")
     db.refresh(item)
     return item
 

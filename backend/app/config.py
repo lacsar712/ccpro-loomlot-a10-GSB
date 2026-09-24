@@ -8,6 +8,7 @@ class Settings(BaseSettings):
     jwt_secret: str = "loomlot-jwt-secret-change-me"
     jwt_algorithm: str = "HS256"
     access_token_expire_minutes: int = 480
+    queue_call_timeout_minutes: int = 30
 
 
 settings = Settings()
