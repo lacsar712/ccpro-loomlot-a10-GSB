@@ -8,6 +8,7 @@
   import Dashboard from './routes/Dashboard.svelte';
   import DyeHouses from './routes/DyeHouses.svelte';
   import Vats from './routes/Vats.svelte';
+  import Queue from './routes/Queue.svelte';
   import DyeLots from './routes/DyeLots.svelte';
   import FastnessChecks from './routes/FastnessChecks.svelte';
 
@@ -18,6 +19,7 @@
     '/': wrap({ component: Dashboard, conditions: [requireAuth] }),
     '/houses': wrap({ component: DyeHouses, conditions: [requireAuth] }),
     '/vats': wrap({ component: Vats, conditions: [requireAuth] }),
+    '/queue': wrap({ component: Queue, conditions: [requireAuth] }),
     '/lots': wrap({ component: DyeLots, conditions: [requireAuth] }),
     '/checks': wrap({ component: FastnessChecks, conditions: [requireAuth] }),
   };

@@ -10,6 +10,7 @@ from app.models.dye_lot import DyeLot
 from app.models.user import User
 from app.models.vat import Vat
 from app.schemas.dye_lot import DyeLotCreate, DyeLotUpdate, DyeLotOut
+from app.services import queue_service as qs
 
 router = APIRouter(prefix="/api/dye-lots", tags=["dye-lots"])
 
@@ -42,6 +43,8 @@ def create_dye_lot(
             status_code=409,
             detail=f"染缸状态为「{vat.status}」，仅 ready 或 dyeing 时可新建染程",
         )
+    # 强制叫号：未叫号 / 已作废 / 叫号超时一律 409（与超时作废共用同一时钟规则）
+    ticket = qs.require_call_for_lot(db, payload.vat_id)
     item = DyeLot(
         vat_id=payload.vat_id,
         recipe_name=payload.recipe_name,
@@ -51,6 +54,9 @@ def create_dye_lot(
     )
     vat.status = "dyeing"
     db.add(item)
+    db.flush()
+    # 开立成功：该号完成并挂到本笔染程，同一号不得再开第二笔
+    qs.complete_ticket(db, ticket, item)
     db.commit()
     db.refresh(item)
     return item
@@ -88,7 +94,16 @@ def update_dye_lot(
                 status_code=409,
                 detail=f"目标染缸状态为「{vat.status}」，无法改挂染程",
             )
+        # 改挂到另一染缸等同于在该缸开染程，同样必须有有效叫号，叫号被该染程消费
+        ticket = qs.require_call_for_lot(db, data["vat_id"])
         vat.status = "dyeing"
+        for k, v in data.items():
+            setattr(item, k, v)
+        db.flush()
+        qs.complete_ticket(db, ticket, item)
+        db.commit()
+        db.refresh(item)
+        return item
     for k, v in data.items():
         setattr(item, k, v)
     db.commit()

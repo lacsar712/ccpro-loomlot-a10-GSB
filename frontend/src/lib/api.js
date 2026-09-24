@@ -53,3 +53,12 @@ export const VAT_STATUS = {
   dyeing: '染色中',
   drain: '排液',
 };
+
+export const QUEUE_TIMEOUT_MINUTES = 30;
+
+export const QUEUE_STATUS = {
+  taken: '等待叫号',
+  called: '已叫号',
+  completed: '已完成',
+  voided: '已作废',
+};

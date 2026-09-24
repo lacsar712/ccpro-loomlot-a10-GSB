@@ -1,6 +1,6 @@
 <script>
   import { onMount } from 'svelte';
-  import { api, VAT_STATUS } from '../lib/api.js';
+  import { api, VAT_STATUS, QUEUE_STATUS } from '../lib/api.js';
 
   let houses = [];
   let rows = [];
@@ -13,6 +13,12 @@
     status: 'ready',
   };
   let editing = null;
+
+  function ticketLabel(row) {
+    const t = row.currentTicket;
+    if (!t) return '无号';
+    return `#${t.id} ${QUEUE_STATUS[t.status] || t.status}`;
+  }
 
   async function load() {
     error = '';
@@ -93,7 +99,7 @@
 </script>
 
 <h1 class="page-title">染缸</h1>
-<p class="page-sub">状态：就绪 / 染色中 / 排液。容量单位为升。</p>
+<p class="page-sub">状态：就绪 / 染色中 / 排液。容量单位为升。当前号展示该缸排队状态（等待叫号 / 已叫号）。</p>
 
 <div class="panel" style="margin-bottom:1rem;">
   <div class="form-grid">
@@ -142,6 +148,7 @@
         <th>纤维</th>
         <th>容量 L</th>
         <th>状态</th>
+        <th>当前号</th>
         <th></th>
       </tr>
     </thead>
@@ -154,6 +161,13 @@
           <td>{row.fiberType}</td>
           <td>{row.capacityL}</td>
           <td><span class="badge {row.status}">{VAT_STATUS[row.status] || row.status}</span></td>
+          <td>
+            {#if row.currentTicket}
+              <span class="badge q-{row.currentTicket.status}">{ticketLabel(row)}</span>
+            {:else}
+              <span style="color:var(--indigo-mist);font-size:0.8rem;">无号</span>
+            {/if}
+          </td>
           <td class="row-actions">
             {#if row.status !== 'drain'}
               <button class="btn ghost small" type="button" on:click={() => drain(row.id)}>完成排液</button>
@@ -166,3 +180,17 @@
     </tbody>
   </table>
 </div>
+
+<style>
+  .badge.q-taken {
+    color: #ffd98a;
+    border-color: rgba(224, 168, 74, 0.5);
+    background: rgba(224, 168, 74, 0.12);
+  }
+
+  .badge.q-called {
+    color: #b8a8ff;
+    border-color: rgba(107, 92, 231, 0.55);
+    background: rgba(107, 92, 231, 0.15);
+  }
+</style>

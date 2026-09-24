@@ -9,9 +9,33 @@ from app.database import get_db
 from app.models.dye_house import DyeHouse
 from app.models.user import User
 from app.models.vat import Vat
-from app.schemas.vat import VatCreate, VatUpdate, VatOut
+from app.schemas.vat import VatCreate, VatUpdate, VatOut, CurrentTicketBrief
+from app.services import queue_service as qs
 
 router = APIRouter(prefix="/api/vats", tags=["vats"])
+
+
+def _vat_out(v: Vat) -> VatOut:
+    """组装 VatOut，附带当前排队号简要状态。"""
+    t = getattr(v, "current_ticket", None)
+    brief = None
+    if t is not None:
+        brief = CurrentTicketBrief(
+            id=t.id,
+            taken_at=t.taken_at,
+            called_at=t.called_at,
+            status="called" if t.called_at is not None else "taken",
+            expires_at=qs.call_deadline(t.called_at) if t.called_at else None,
+        )
+    return VatOut(
+        id=v.id,
+        dye_house_id=v.dye_house_id,
+        vat_code=v.vat_code,
+        fiber_type=v.fiber_type,
+        capacity_l=v.capacity_l,
+        status=v.status,
+        current_ticket=brief,
+    )
 
 
 @router.get("", response_model=List[VatOut])
@@ -23,7 +47,9 @@ def list_vats(
     q = db.query(Vat)
     if dye_house_id is not None:
         q = q.filter(Vat.dye_house_id == dye_house_id)
-    return q.order_by(Vat.id).all()
+    vats = q.order_by(Vat.id).all()
+    qs.attach_current_tickets(db, vats)
+    return [_vat_out(v) for v in vats]
 
 
 @router.post("", response_model=VatOut, status_code=status.HTTP_201_CREATED)

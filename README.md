@@ -49,14 +49,21 @@ docker compose down
 
 1. **DyeHouse** — `name`, `waterNote`, `notes`
 2. **Vat** — `dyeHouseId`, `vatCode`, `fiberType`, `capacityL`, `status` ∈ `ready|dyeing|drain`
-3. **DyeLot** — `vatId`, `recipeName`, `fabricKg`, `startedAt`, `operatorName`
-4. **FastnessCheck** — `dyeLotId`, `checkedAt`, `washFastness`(1–5), `rubFastness`(>0), `tempC`, `notes`
+3. **QueueTicket（叫号排队）** — `vatId`, `takenAt`, `calledAt`(可空), `voidedAt`(可空), `completedAt`(可空), `takenBy`, `dyeLotId`
+4. **DyeLot** — `vatId`, `recipeName`, `fabricKg`, `startedAt`, `operatorName`
+5. **FastnessCheck** — `dyeLotId`, `checkedAt`, `washFastness`(1–5), `rubFastness`(>0), `tempC`, `notes`
 
 ### 规则
 
-- 仅当染缸状态为 `ready` 或 `dyeing` 时可新建染程，否则 409
-- 新建染程后，染缸状态自动设为 `dyeing`
+- 开染程必须先叫号：操作员可取号，**叫号仅主管**（admin）
+- 同一染缸「未作废且未完成」的号同时最多一个
+- 叫号后 **30 分钟**内必须开出染程，超时该号自动作废；作废判定与开立拦截共用同一套时钟规则（下一次读/写排队状态时生效）
+- 未叫号或号已作废（含超时）时开染程返回 **409 中文**
+- 叫号后开立染程成功，该号即完成并挂到该染程；同一号不得再开第二笔染程（改挂染缸同样须有有效叫号并消费该号）
+- 仅当染缸状态为 `ready` 或 `dyeing` 时可新建染程，否则 409；新建染程后染缸自动设为 `dyeing`
+- 染缸列表返回 `currentTicket`（当前号简要状态）；看板 `queueWaitingCount` 为等待叫号条数，与排队列表等待行同一口径
 - 可选接口：`POST /api/vats/{id}/drain` 将染缸置为 `drain`
+- 种子数据：一号染缸（V-01）已有一笔「已取号、未叫号」的排队号
 
 ## 主要 API
 
@@ -64,6 +71,7 @@ docker compose down
 - `GET /api/auth/me`
 - `GET/POST/PUT/DELETE /api/dye-houses`
 - `GET/POST/PUT/DELETE /api/vats` · `POST /api/vats/{id}/drain`
+- `GET /api/queue`（`scope=active|all`，可选 `vatId`）· `POST /api/queue/take`（操作员取号）· `POST /api/queue/{id}/call`（仅主管叫号）
 - `GET/POST/PUT/DELETE /api/dye-lots`
 - `GET/POST/PUT/DELETE /api/fastness-checks`
 - `GET /api/dashboard/stats`

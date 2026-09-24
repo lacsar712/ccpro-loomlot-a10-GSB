@@ -1,6 +1,6 @@
 <script>
   import { onMount } from 'svelte';
-  import { api, VAT_STATUS, toLocalInput, fromLocalInput } from '../lib/api.js';
+  import { api, VAT_STATUS, QUEUE_STATUS, toLocalInput, fromLocalInput } from '../lib/api.js';
 
   let vats = [];
   let rows = [];
@@ -31,7 +31,9 @@
   function vatLabel(id) {
     const v = vats.find((x) => x.id === id);
     if (!v) return id;
-    return `${v.vatCode}（${VAT_STATUS[v.status] || v.status}）`;
+    const t = v.currentTicket;
+    const q = t ? `｜号#${t.id} ${QUEUE_STATUS[t.status] || t.status}` : '｜无有效叫号';
+    return `${v.vatCode}（${VAT_STATUS[v.status] || v.status}）${q}`;
   }
 
   async function save() {
@@ -86,7 +88,10 @@
 </script>
 
 <h1 class="page-title">染程</h1>
-<p class="page-sub">仅 ready / dyeing 染缸可开缸；提交后染缸自动变为染色中。</p>
+<p class="page-sub">
+  开染程前须先在<a href="#/queue">叫号排队</a>取号并由主管叫号；叫号后 30 分钟内必须开出，超时号作废。
+  未叫号或号已作废时提交将返回 409；开立成功该号即完成，不可再挂第二笔染程。
+</p>
 
 <div class="panel" style="margin-bottom:1rem;">
   <div class="form-grid">
@@ -95,7 +100,9 @@
       <select bind:value={form.vatId}>
         {#each vats as v}
           <option value={String(v.id)}
-            >{v.vatCode} · {VAT_STATUS[v.status] || v.status} · {v.fiberType}</option
+            >{v.vatCode} · {VAT_STATUS[v.status] || v.status} · {v.fiberType}{v.currentTicket
+              ? ` · 号#${v.currentTicket.id} ${QUEUE_STATUS[v.currentTicket.status] || v.currentTicket.status}`
+              : ' · 无有效叫号'}</option
           >
         {/each}
       </select>

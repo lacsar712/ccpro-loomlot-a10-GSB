@@ -1,8 +1,21 @@
+from datetime import datetime
 from typing import Optional, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
 VatStatus = Literal["ready", "dyeing", "drain"]
+
+
+class CurrentTicketBrief(BaseModel):
+    """染缸列表里展示的当前排队号简要状态。"""
+
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
+
+    id: int
+    taken_at: datetime = Field(serialization_alias="takenAt")
+    called_at: Optional[datetime] = Field(None, serialization_alias="calledAt")
+    status: Literal["taken", "called"]
+    expires_at: Optional[datetime] = Field(None, serialization_alias="expiresAt")
 
 
 class VatCreate(BaseModel):
@@ -34,3 +47,4 @@ class VatOut(BaseModel):
     fiber_type: str = Field(serialization_alias="fiberType")
     capacity_l: float = Field(serialization_alias="capacityL")
     status: VatStatus
+    current_ticket: Optional[CurrentTicketBrief] = Field(None, serialization_alias="currentTicket")

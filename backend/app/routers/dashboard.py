@@ -12,6 +12,7 @@ from app.models.fastness_check import FastnessCheck
 from app.models.user import User
 from app.models.vat import Vat
 from app.schemas.dashboard import DashboardStats
+from app.services import queue_service as qs
 
 router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
 
@@ -38,4 +39,6 @@ def get_stats(
             .scalar()
             or 0
         ),
+        # 等待叫号条数：已取未叫且未作废未完成，与排队列表等待行同一口径（超时先自动作废）
+        queue_waiting_count=qs.waiting_count(db, now),
     )

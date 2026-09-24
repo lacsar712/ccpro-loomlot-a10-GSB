@@ -55,3 +55,10 @@ def get_current_user(
     if not user:
         raise credentials_exception
     return user
+
+
+def require_admin(current_user: User = Depends(get_current_user)) -> User:
+    """叫号等仅主管（admin）可执行的操作依赖。"""
+    if current_user.role != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="仅主管可执行叫号")
+    return current_user
